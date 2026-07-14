@@ -1,0 +1,91 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Sylfaen", serif;
+  background: #f7f5f0;
+  color: #2b2b2b;
+  margin: 0;
+  padding: 24px 16px;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.subtitle {
+  color: #6b6b6b;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+
+.upload-card {
+  background: #ffffff;
+  border: 1px solid #e0dcd2;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 16px;
+  background: #2b4a6f;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #9aa8b8;
+  cursor: not-allowed;
+}
+
+.loading {
+  margin-top: 14px;
+  color: #2b4a6f;
+}
+
+.error {
+  margin-top: 14px;
+  background: #fdecea;
+  border: 1px solid #e5b4ae;
+  color: #8b2c22;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.hidden {
+  display: none;
+}
+
+#resultSection {
+  margin-top: 28px;
+}
+
+.hint {
+  color: #6b6b6b;
+}
+
+#paragraphList li {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>პრეზენტაციის წამკითხველი</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>პრეზენტაციის წამკითხველი</h1>
+    <p class="subtitle">ატვირთეთ პრეზენტაცია და წასაკითხი ტექსტი</p>
+
+    <section class="upload-card">
+      <div class="field">
+        <label for="pptxInput">პრეზენტაცია (.pptx)</label>
+        <input type="file" id="pptxInput" accept=".pptx" />
+      </div>
+
+      <div class="field">
+        <label for="docxInput">წასაკითხი ტექსტი (.docx)</label>
+        <input type="file" id="docxInput" accept=".docx" />
+      </div>
+
+      <button id="uploadBtn">ატვირთვა</button>
+
+      <div id="loading" class="loading hidden">მიმდინარეობს დამუშავება…</div>
+      <div id="errorBox" class="error hidden"></div>
+    </section>
+
+    <section id="resultSection" class="hidden">
+      <h2>ამოკითხული აბზაცები (<span id="paragraphCount"></span>)</h2>
+      <p class="hint">გადაამოწმეთ, ემთხვევა თუ არა თქვენს დოკუმენტს.</p>
+      <ol id="paragraphList"></ol>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
