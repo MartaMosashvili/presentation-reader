@@ -85,7 +85,15 @@ async function showReview(id, paragraphs) {
     matchBanner.className = "banner warn";
     matchBanner.textContent =
       `⚠ შეუსაბამობა: პრეზენტაციაში ${slideCount} სლაიდია, დოკუმენტში კი ${paragraphCount} აბზაცი. ` +
-      `გაასწორეთ Word-ის დოკუმენტი ისე, რომ თითო სლაიდს თითო აბზაცი შეესაბამებოდეს, და ატვირთეთ თავიდან.`;
+      `გაასწორეთ Word-ის დოკუმენტი ისე, რომ თითო სლაიდს თითო აბზაცი შეესაბამებოდეს, და ატვირთეთ თავიდან. `;
+    const reBtn = document.createElement("button");
+    reBtn.textContent = "თავიდან ატვირთვა";
+    reBtn.className = "linklike";
+    reBtn.onclick = () => {
+      docxInput.value = "";
+      uploadCard.scrollIntoView({ behavior: "smooth" });
+    };
+    matchBanner.appendChild(reBtn);
     audioControls.classList.add("hidden");
   }
 
@@ -142,6 +150,12 @@ uploadBtn.addEventListener("click", async () => {
   formData.append("docx", docxFile);
 
   loading.classList.remove("hidden");
+  loading.textContent =
+    "მიმდინარეობს დამუშავება… სლაიდების კონვერტაციას შესაძლოა რამდენიმე წამი დასჭირდეს.";
+  const slowTimer = setTimeout(() => {
+    loading.textContent =
+      "კონვერტაცია ჯერ კიდევ მიმდინარეობს — დიდი პრეზენტაცია მეტ დროს მოითხოვს, გთხოვთ დაელოდოთ.";
+  }, 10000);
   uploadBtn.disabled = true;
 
   try {
@@ -158,6 +172,7 @@ uploadBtn.addEventListener("click", async () => {
   } catch (err) {
     showError(err.message);
   } finally {
+    clearTimeout(slowTimer);
     loading.classList.add("hidden");
     uploadBtn.disabled = false;
   }
@@ -215,6 +230,7 @@ async function pollStatus() {
 
 // ---------- Player ----------
 const audio = new Audio();
+let playToken = 0; // guards against overlapping playSlide() runs
 let currentIndex = 0; // 0-based
 // phase: 'playing' | 'gap' | 'paused' | 'ended'
 let phase = "playing";
@@ -260,18 +276,23 @@ function startGap(ms) {
 }
 
 async function playSlide(i) {
+  const token = ++playToken;
   clearGap();
+  audio.pause();
+  audio.currentTime = 0;
   endedBanner.classList.add("hidden");
   currentIndex = i;
   await renderSlide(i);
+  if (token !== playToken) return; // a newer navigation superseded this one
   audio.src = `/api/presentations/${currentId}/audio/${i + 1}`;
   audio.playbackRate = parseFloat(rateSelect.value);
   phase = "playing";
   setPlayPauseLabel();
   try {
     await audio.play();
+    if (token !== playToken) return;
   } catch (err) {
-    // Autoplay policies shouldn't hit us (user clicked), but just in case:
+    if (token !== playToken) return;
     phase = "paused";
     pausedFrom = "playing";
     setPlayPauseLabel();
@@ -292,6 +313,13 @@ audio.addEventListener("ended", () => {
   if (phase === "playing") startGap(GAP_MS);
 });
 
+audio.addEventListener("error", () => {
+  if (phase === "playing") {
+    slideCounter.textContent = `${currentIndex + 1} / ${slideCount} — აუდიო ვერ ჩაიტვირთა`;
+    startGap(GAP_MS); // don't freeze the demo: advance after the gap
+  }
+});
+
 playPauseBtn.addEventListener("click", () => {
   if (phase === "playing") {
     pausedFrom = "playing";
@@ -307,7 +335,11 @@ playPauseBtn.addEventListener("click", () => {
       startGap(gapRemaining);
     } else {
       phase = "playing";
-      audio.play();
+      audio.play().catch(() => {
+        phase = "paused";
+        pausedFrom = "playing";
+        setPlayPauseLabel();
+      });
     }
   } else if (phase === "ended") {
     playSlide(0);

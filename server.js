@@ -8,7 +8,7 @@ const path = require("path");
 const fs = require("fs");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // --- Folders -------------------------------------------------------------
 const STORAGE_DIR = path.join(__dirname, "storage");
@@ -38,6 +38,9 @@ function findSoffice() {
 }
 
 const SOFFICE = findSoffice();
+let conversionBusy = false; // one LibreOffice conversion at a time
+
+let convertingLock = false; // one LibreOffice conversion at a time
 
 function convertPptxToPdf(pptxPath, outDir) {
   return new Promise((resolve, reject) => {
@@ -52,6 +55,10 @@ function convertPptxToPdf(pptxPath, outDir) {
         );
         if (fs.existsSync(pdfPath)) {
           resolve(pdfPath);
+        } else if (error && error.killed) {
+          reject(
+            new Error("კონვერტაცია შეწყდა დროის ამოწურვით (3 წთ). სცადეთ უფრო მცირე ფაილი.")
+          );
         } else {
           reject(
             new Error(
@@ -118,6 +125,8 @@ async function synthesizeOpenAI(text) {
   }
   const response = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
+    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(60000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
@@ -154,6 +163,7 @@ async function synthesizeAzure(text) {
     `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
     {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: {
         "Ocp-Apim-Subscription-Key": AZURE_KEY,
         "Content-Type": "application/ssml+xml",
@@ -181,34 +191,36 @@ async function synthesize(text) {
   throw new Error(`უცნობი TTS_PROVIDER: ${TTS_PROVIDER} (დასაშვებია: azure, openai)`);
 }
 
-async function synthesizeWithRetry(text, attempts = 2) {
+async function synthesizeWithRetry(text, attempts = 3) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
       return await synthesize(text);
     } catch (err) {
       lastErr = err;
-      await new Promise((r) => setTimeout(r, 1500));
+      // backoff: 2s, 4s (helps with 429/timeouts)
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
     }
   }
   throw lastErr;
 }
 
+const generatingIds = new Set(); // guards double-start per presentation
+
 // Background audio generation, one presentation at a time
 async function generateAudio(presDir, paragraphs) {
   const audioDir = path.join(presDir, "audio");
   fs.mkdirSync(audioDir, { recursive: true });
-  patchManifest(presDir, {
-    audio: { status: "generating", done: 0, total: paragraphs.length, error: null },
-  });
+  let lastDone = 0;
   try {
     for (let i = 0; i < paragraphs.length; i++) {
       const mp3 = await synthesizeWithRetry(paragraphs[i]);
       fs.writeFileSync(path.join(audioDir, `slide-${i + 1}.mp3`), mp3);
+      lastDone = i + 1;
       patchManifest(presDir, {
         audio: {
           status: "generating",
-          done: i + 1,
+          done: lastDone,
           total: paragraphs.length,
           error: null,
         },
@@ -220,8 +232,17 @@ async function generateAudio(presDir, paragraphs) {
     console.log(`Audio done: ${paragraphs.length} slides`);
   } catch (err) {
     console.error("Audio generation error:", err);
+    const m = readManifest(presDir);
+    const lastDone = m.audio && m.audio.done ? m.audio.done : 0;
     patchManifest(presDir, {
-      audio: { status: "error", done: 0, total: paragraphs.length, error: err.message },
+      audio: {
+        status: "error",
+        done: lastDone,
+        total: paragraphs.length,
+        error:
+          (lastDone > 0 ? `${lastDone}/${paragraphs.length} სლაიდი მზადაა. ` : "") +
+          err.message,
+      },
     });
   }
 }
@@ -229,7 +250,7 @@ async function generateAudio(presDir, paragraphs) {
 // --- Multer -------------------------------------------------------------------
 const upload = multer({
   dest: UPLOADS_DIR,
-  limits: { fileSize: 100 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB per file
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (file.fieldname === "pptx" && ext !== ".pptx") {
@@ -258,6 +279,7 @@ app.post(
     });
   },
   async (req, res) => {
+    let presDir = null;
     try {
       const pptxFile = req.files && req.files.pptx && req.files.pptx[0];
       const docxFile = req.files && req.files.docx && req.files.docx[0];
@@ -268,8 +290,14 @@ app.post(
           .json({ error: "საჭიროა ორივე ფაილის ატვირთვა: .pptx და .docx" });
       }
 
+      if (convertingLock) {
+        return res.status(503).json({
+          error: "სხვა პრეზენტაცია მუშავდება ამ მომენტში — სცადეთ რამდენიმე წამში.",
+        });
+      }
+
       const id = uuidv4();
-      const presDir = path.join(PRESENTATIONS_DIR, id);
+      presDir = path.join(PRESENTATIONS_DIR, id);
       fs.mkdirSync(presDir, { recursive: true });
 
       const pptxPath = path.join(presDir, "slides.pptx");
@@ -278,18 +306,38 @@ app.post(
       fs.renameSync(docxFile.path, docxPath);
 
       const result = await mammoth.extractRawText({ path: docxPath });
+      // mammoth separates Word paragraphs with blank lines; a single \n inside
+      // a block is a soft line break (Shift+Enter) and must NOT create a new slide.
       const paragraphs = result.value
-        .split(/\r?\n/)
-        .map((p) => p.trim())
+        .replace(/\r/g, "")
+        .split(/\n{2,}/)
+        .map((p) => p.replace(/\n+/g, " ").trim())
         .filter((p) => p.length > 0);
 
       if (paragraphs.length === 0) {
+        fs.rmSync(presDir, { recursive: true, force: true });
         return res
           .status(400)
           .json({ error: "Word-ის დოკუმენტში ტექსტი ვერ მოიძებნა" });
       }
 
-      await convertPptxToPdf(pptxPath, presDir);
+      convertingLock = true;
+      try {
+        if (conversionBusy) {
+        fs.rmSync(presDir, { recursive: true, force: true });
+        return res.status(503).json({
+          error: "სხვა კონვერტაცია მიმდინარეობს — სცადეთ რამდენიმე წამში",
+        });
+      }
+      conversionBusy = true;
+      try {
+        await convertPptxToPdf(pptxPath, presDir);
+      } finally {
+        conversionBusy = false;
+      }
+      } finally {
+        convertingLock = false;
+      }
 
       const manifest = {
         id,
@@ -301,6 +349,7 @@ app.post(
       res.json({ id, paragraphCount: paragraphs.length, paragraphs });
     } catch (err) {
       console.error("Upload error:", err);
+      if (presDir) fs.rmSync(presDir, { recursive: true, force: true });
       res
         .status(500)
         .json({ error: "ფაილების დამუშავებისას მოხდა შეცდომა: " + err.message });
@@ -318,11 +367,16 @@ app.post("/api/presentations/:id/generate-audio", (req, res) => {
       return res.status(404).json({ error: "პრეზენტაცია ვერ მოიძებნა" });
     }
     const manifest = readManifest(presDir);
-    if (manifest.audio && manifest.audio.status === "generating") {
+    if (generatingIds.has(id) || (manifest.audio && manifest.audio.status === "generating")) {
       return res.json({ ok: true, already: true });
     }
+    generatingIds.add(id);
+    // Synchronous flip closes the double-click race window before async work starts
+    patchManifest(presDir, {
+      audio: { status: "generating", done: 0, total: manifest.paragraphs.length, error: null },
+    });
     // Fire and forget; client polls status
-    generateAudio(presDir, manifest.paragraphs);
+    generateAudio(presDir, manifest.paragraphs).finally(() => generatingIds.delete(id));
     res.json({ ok: true });
   } catch (err) {
     console.error("generate-audio error:", err);
