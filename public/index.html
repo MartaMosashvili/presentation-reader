@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>პრეზენტაციის წამკითხველი</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="/vendor/pdf.min.js"></script>
 </head>
 <body>
   <main class="container">
-    <h1>პრეზენტაციის წამკითხველი</h1>
-    <p class="subtitle">ატვირთეთ პრეზენტაცია და წასაკითხი ტექსტი</p>
+    <header id="appHeader">
+      <h1>პრეზენტაციის წამკითხველი</h1>
+      <p class="subtitle">ატვირთეთ პრეზენტაცია და წასაკითხი ტექსტი</p>
+    </header>
 
     <section class="upload-card" id="uploadCard">
       <div class="field">
@@ -34,7 +36,41 @@
     <section id="reviewSection" class="hidden">
       <h2>შესაბამისობის გადამოწმება</h2>
       <div id="matchBanner"></div>
+
+      <div id="audioControls" class="hidden">
+        <button id="generateBtn">ხმის გენერაცია</button>
+        <div id="audioProgress" class="hidden">
+          <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+          <div id="progressText" class="progress-text"></div>
+        </div>
+        <button id="startBtn" class="hidden">პრეზენტაციის დაწყება</button>
+        <div id="audioError" class="error hidden"></div>
+      </div>
+
       <div id="matchList"></div>
+    </section>
+
+    <!-- Player -->
+    <section id="playerSection" class="hidden">
+      <div class="player-frame">
+        <canvas id="slideCanvas"></canvas>
+      </div>
+      <div class="player-controls">
+        <button id="prevBtn" title="წინა სლაიდი">◀</button>
+        <button id="playPauseBtn">პაუზა</button>
+        <button id="nextBtn" title="შემდეგი სლაიდი">▶</button>
+        <span id="slideCounter"></span>
+        <label class="rate-label">სიჩქარე
+          <select id="rateSelect">
+            <option value="0.85">0.85×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.15">1.15×</option>
+            <option value="1.3">1.3×</option>
+          </select>
+        </label>
+        <button id="backBtn" class="secondary">← უკან</button>
+      </div>
+      <div id="endedBanner" class="banner ok hidden">პრეზენტაცია დასრულდა. <button id="restartBtn" class="linklike">თავიდან დაწყება</button></div>
     </section>
   </main>
 

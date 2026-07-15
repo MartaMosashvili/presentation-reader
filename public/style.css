@@ -164,3 +164,94 @@ button:disabled {
     flex: none;
   }
 }
+
+/* --- Module B/C: generation + player --- */
+#audioControls {
+  margin: 0 0 18px;
+}
+
+#generateBtn, #startBtn {
+  margin-right: 12px;
+}
+
+#startBtn {
+  background: #1e6b3a;
+}
+
+.progress-track {
+  background: #e6e2d8;
+  border-radius: 6px;
+  height: 12px;
+  margin: 12px 0 6px;
+  overflow: hidden;
+  max-width: 420px;
+}
+
+.progress-fill {
+  background: #2b4a6f;
+  height: 100%;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+.progress-text {
+  color: #444;
+  font-size: 14px;
+}
+
+.player-frame {
+  background: #1c1c1c;
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.player-frame canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.player-controls button {
+  padding: 8px 16px;
+}
+
+#slideCounter {
+  font-size: 15px;
+  color: #444;
+  min-width: 52px;
+}
+
+.rate-label {
+  font-size: 14px;
+  color: #444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rate-label select {
+  font-family: inherit;
+  padding: 4px 6px;
+}
+
+button.secondary {
+  background: #8a8578;
+  margin-left: auto;
+}
+
+button.linklike {
+  background: none;
+  color: #1e5b1e;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
+}
