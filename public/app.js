@@ -234,6 +234,7 @@ async function pollStatus() {
 
 // ---------- Player ----------
 const audio = new Audio();
+let audioUrls = []; // blob URLs after prefetch; falls back to server URLs
 let playToken = 0; // guards against overlapping playSlide() runs
 let currentIndex = 0; // 0-based
 // phase: 'playing' | 'gap' | 'paused' | 'ended'
@@ -289,7 +290,7 @@ async function playSlide(i) {
   currentIndex = i;
   await renderSlide(i);
   if (token !== playToken) return; // a newer navigation superseded this one
-  audio.src = `/api/presentations/${currentId}/audio/${i + 1}`;
+  audio.src = audioUrls[i] || `/api/presentations/${currentId}/audio/${i + 1}`;
   audio.playbackRate = parseFloat(rateSelect.value);
   phase = "playing";
   setPlayPauseLabel();
@@ -403,7 +404,28 @@ function highlightThumb(i) {
   if (active) active.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
+async function preloadAudio() {
+  audioUrls = [];
+  for (let i = 0; i < slideCount; i++) {
+    progressText.textContent = `აუდიო იტვირთება: ${i + 1}/${slideCount}`;
+    try {
+      const r = await fetch(`/api/presentations/${currentId}/audio/${i + 1}`);
+      if (r.ok) {
+        audioUrls[i] = URL.createObjectURL(await r.blob());
+      } else {
+        audioUrls[i] = null; // player will fall back to the server URL
+      }
+    } catch {
+      audioUrls[i] = null;
+    }
+  }
+}
+
 startBtn.addEventListener("click", async () => {
+  startBtn.disabled = true;
+  audioProgress.classList.remove("hidden");
+  await preloadAudio(); // after this, playback survives internet loss
+  startBtn.disabled = false;
   appHeader.classList.add("hidden");
   uploadCard.classList.add("hidden");
   reviewSection.classList.add("hidden");
