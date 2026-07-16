@@ -108,6 +108,7 @@ const OPENAI_TTS_INSTRUCTIONS =
 const AZURE_KEY = process.env.AZURE_SPEECH_KEY;
 const AZURE_REGION = process.env.AZURE_SPEECH_REGION;
 const AZURE_VOICE = process.env.AZURE_VOICE || "ka-GE-EkaNeural";
+const ALLOWED_VOICES = ["ka-GE-EkaNeural", "ka-GE-GiorgiNeural"];
 
 function escapeXml(s) {
   return s
@@ -150,7 +151,7 @@ async function synthesizeOpenAI(text) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function synthesizeAzure(text) {
+async function synthesizeAzure(text, voice) {
   if (!AZURE_KEY || !AZURE_REGION) {
     throw new Error(
       "AZURE_SPEECH_KEY ან AZURE_SPEECH_REGION არ არის მითითებული .env ფაილში"
@@ -158,7 +159,7 @@ async function synthesizeAzure(text) {
   }
   const ssml =
     `<speak version='1.0' xml:lang='ka-GE'>` +
-    `<voice name='${AZURE_VOICE}'>${escapeXml(text)}</voice></speak>`;
+    `<voice name='${voice || AZURE_VOICE}'>${escapeXml(text)}</voice></speak>`;
   const response = await fetch(
     `https://${AZURE_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
     {
@@ -185,17 +186,17 @@ async function synthesizeAzure(text) {
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function synthesize(text) {
+async function synthesize(text, voice) {
   if (TTS_PROVIDER === "openai") return synthesizeOpenAI(text);
-  if (TTS_PROVIDER === "azure") return synthesizeAzure(text);
+  if (TTS_PROVIDER === "azure") return synthesizeAzure(text, voice);
   throw new Error(`უცნობი TTS_PROVIDER: ${TTS_PROVIDER} (დასაშვებია: azure, openai)`);
 }
 
-async function synthesizeWithRetry(text, attempts = 3) {
+async function synthesizeWithRetry(text, voice, attempts = 3) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      return await synthesize(text);
+      return await synthesize(text, voice);
     } catch (err) {
       lastErr = err;
       // backoff: 2s, 4s (helps with 429/timeouts)
@@ -208,13 +209,13 @@ async function synthesizeWithRetry(text, attempts = 3) {
 const generatingIds = new Set(); // guards double-start per presentation
 
 // Background audio generation, one presentation at a time
-async function generateAudio(presDir, paragraphs) {
+async function generateAudio(presDir, paragraphs, voice) {
   const audioDir = path.join(presDir, "audio");
   fs.mkdirSync(audioDir, { recursive: true });
   let lastDone = 0;
   try {
     for (let i = 0; i < paragraphs.length; i++) {
-      const mp3 = await synthesizeWithRetry(paragraphs[i]);
+      const mp3 = await synthesizeWithRetry(paragraphs[i], voice);
       fs.writeFileSync(path.join(audioDir, `slide-${i + 1}.mp3`), mp3);
       lastDone = i + 1;
       patchManifest(presDir, {
@@ -264,6 +265,7 @@ const upload = multer({
 });
 
 // --- Static frontend --------------------------------------------------------------
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // --- POST /api/upload --------------------------------------------------------------
@@ -370,13 +372,20 @@ app.post("/api/presentations/:id/generate-audio", (req, res) => {
     if (generatingIds.has(id) || (manifest.audio && manifest.audio.status === "generating")) {
       return res.json({ ok: true, already: true });
     }
+    const requestedVoice = (req.body && req.body.voice) || AZURE_VOICE;
+    if (TTS_PROVIDER === "azure" && !ALLOWED_VOICES.includes(requestedVoice)) {
+      return res.status(400).json({ error: "უცნობი ხმა: " + requestedVoice });
+    }
     generatingIds.add(id);
     // Synchronous flip closes the double-click race window before async work starts
     patchManifest(presDir, {
+      voice: requestedVoice,
       audio: { status: "generating", done: 0, total: manifest.paragraphs.length, error: null },
     });
     // Fire and forget; client polls status
-    generateAudio(presDir, manifest.paragraphs).finally(() => generatingIds.delete(id));
+    generateAudio(presDir, manifest.paragraphs, requestedVoice).finally(() =>
+      generatingIds.delete(id)
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error("generate-audio error:", err);

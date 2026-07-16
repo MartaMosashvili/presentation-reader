@@ -38,6 +38,12 @@
       <div id="matchBanner"></div>
 
       <div id="audioControls" class="hidden">
+        <label class="rate-label">ხმა
+          <select id="voiceSelect">
+            <option value="ka-GE-EkaNeural" selected>ეკა (ქალის ხმა)</option>
+            <option value="ka-GE-GiorgiNeural">გიორგი (მამაკაცის ხმა)</option>
+          </select>
+        </label>
         <button id="generateBtn">ხმის გენერაცია</button>
         <div id="audioProgress" class="hidden">
           <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
@@ -52,8 +58,11 @@
 
     <!-- Player -->
     <section id="playerSection" class="hidden">
-      <div class="player-frame">
-        <canvas id="slideCanvas"></canvas>
+      <div class="player-layout">
+        <div id="thumbRail" class="thumb-rail"></div>
+        <div class="player-frame">
+          <canvas id="slideCanvas"></canvas>
+        </div>
       </div>
       <div class="player-controls">
         <button id="prevBtn" title="წინა სლაიდი">◀</button>

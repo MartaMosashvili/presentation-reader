@@ -167,11 +167,23 @@ button:disabled {
 
 /* --- Module B/C: generation + player --- */
 #audioControls {
-  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e0dcd2;
+  border-radius: 8px;
 }
 
 #generateBtn, #startBtn {
-  margin-right: 12px;
+  margin: 0;
+}
+
+#audioProgress, #audioError {
+  flex-basis: 100%;
 }
 
 #startBtn {
@@ -254,4 +266,87 @@ button.linklike {
   text-decoration: underline;
   padding: 0;
   font-size: inherit;
+}
+
+
+/* --- Task 6: thumbnails rail + voice select --- */
+.player-layout {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.thumb-rail {
+  flex: 0 0 120px;
+  max-height: 78vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.thumb-item {
+  position: relative;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.thumb-item:hover {
+  opacity: 1;
+}
+
+.thumb-item.active {
+  border-color: #2b4a6f;
+  opacity: 1;
+}
+
+.thumb-item canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.thumb-num {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: rgba(28, 28, 28, 0.75);
+  color: #fff;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.player-frame {
+  flex: 1;
+}
+
+#voiceSelect {
+  font-family: inherit;
+  font-size: 15px;
+  padding: 7px 10px;
+  border: 1px solid #c9c3b6;
+  border-radius: 6px;
+  background: #fff;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .player-layout {
+    flex-direction: column;
+  }
+  .thumb-rail {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    width: 100%;
+  }
+  .thumb-item {
+    flex: 0 0 90px;
+  }
 }

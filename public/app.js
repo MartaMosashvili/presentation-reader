@@ -10,6 +10,8 @@ const matchBanner = document.getElementById("matchBanner");
 const matchList = document.getElementById("matchList");
 const audioControls = document.getElementById("audioControls");
 const generateBtn = document.getElementById("generateBtn");
+const voiceSelect = document.getElementById("voiceSelect");
+const thumbRail = document.getElementById("thumbRail");
 const audioProgress = document.getElementById("audioProgress");
 const progressFill = document.getElementById("progressFill");
 const progressText = document.getElementById("progressText");
@@ -185,6 +187,8 @@ generateBtn.addEventListener("click", async () => {
   try {
     const r = await fetch(`/api/presentations/${currentId}/generate-audio`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voice: voiceSelect.value }),
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || "გენერაცია ვერ დაიწყო");
@@ -256,6 +260,7 @@ async function renderSlide(i) {
     viewport: scaled,
   }).promise;
   slideCounter.textContent = `${i + 1} / ${slideCount}`;
+  highlightThumb(i);
 }
 
 function clearGap() {
@@ -361,11 +366,49 @@ rateSelect.addEventListener("change", () => {
   audio.playbackRate = parseFloat(rateSelect.value);
 });
 
-startBtn.addEventListener("click", () => {
+voiceSelect.addEventListener("change", () => {
+  // Changing the voice requires regeneration with the new voice
+  if (!startBtn.classList.contains("hidden")) {
+    startBtn.classList.add("hidden");
+    generateBtn.classList.remove("hidden");
+    generateBtn.disabled = false;
+    generateBtn.textContent = "ხმის გენერაცია არჩეული ხმით";
+    audioProgress.classList.add("hidden");
+  }
+});
+
+async function buildThumbRail() {
+  thumbRail.innerHTML = "";
+  for (let i = 0; i < slideCount; i++) {
+    const item = document.createElement("div");
+    item.className = "thumb-item";
+    item.dataset.index = i;
+    const page = await currentPdf.getPage(i + 1);
+    const canvas = await renderThumbnail(page, 110);
+    item.appendChild(canvas);
+    const num = document.createElement("div");
+    num.className = "thumb-num";
+    num.textContent = i + 1;
+    item.appendChild(num);
+    item.addEventListener("click", () => playSlide(i));
+    thumbRail.appendChild(item);
+  }
+}
+
+function highlightThumb(i) {
+  thumbRail.querySelectorAll(".thumb-item").forEach((el) => {
+    el.classList.toggle("active", Number(el.dataset.index) === i);
+  });
+  const active = thumbRail.querySelector(".thumb-item.active");
+  if (active) active.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+startBtn.addEventListener("click", async () => {
   appHeader.classList.add("hidden");
   uploadCard.classList.add("hidden");
   reviewSection.classList.add("hidden");
   playerSection.classList.remove("hidden");
+  await buildThumbRail();
   playSlide(0);
 });
 
